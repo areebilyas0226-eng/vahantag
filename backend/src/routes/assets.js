@@ -1,0 +1,16 @@
+const router = require("express").Router();
+const c = require("../controllers/assetController");
+const { authenticate } = require("../middleware/auth");
+const auth = authenticate("user");
+router.get("/categories", c.getCategories);
+router.use(auth);
+router.get("/", c.getMyAssets);
+router.post("/", c.addAsset);
+router.put("/:id", c.updateAsset);
+router.delete("/:id", c.deleteAsset);
+router.get("/:assetId/qr", c.getTagQR);
+router.get("/:assetId/emergency-contacts", c.getEmergencyContacts);
+router.post("/:assetId/emergency-contacts", c.addEmergencyContact);
+router.post("/activate", c.activateTag);
+router.post("/verify-activation", c.verifyActivationPayment);
+module.exports = router;

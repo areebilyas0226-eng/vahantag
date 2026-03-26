@@ -1,0 +1,11 @@
+const express = require("express");
+const router = express.Router();
+const c = require("../controllers/agentController");
+const { authenticate } = require("../middleware/auth");
+router.use(authenticate("agent"));
+router.get("/profile", c.getProfile);
+router.put("/profile", c.updateProfile);
+router.get("/inventory", c.getInventory);
+router.post("/sales/record", c.recordSale);
+router.get("/sales/history", c.getSalesHistory);
+module.exports = router;
