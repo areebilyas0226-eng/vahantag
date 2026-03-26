@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import 'core/services/api_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'navigation/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  ApiService().init();
+
+  // 🔥 FORCE PORTRAIT
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  // 🔥 INIT API (with debug)
+  try {
+    print("🚀 Initializing ApiService...");
+    ApiService().init();
+    print("✅ ApiService initialized");
+  } catch (e) {
+    print("❌ ApiService init failed: $e");
+  }
+
   runApp(const AdminApp());
 }
 
@@ -18,10 +32,24 @@ class AdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AdminAuthProvider()..initialize(),
+      create: (_) {
+        print("🔄 Initializing AuthProvider...");
+        final provider = AdminAuthProvider();
+
+        // 🔥 SAFE INIT (catch errors)
+        try {
+          provider.initialize();
+        } catch (e) {
+          print("❌ AuthProvider init error: $e");
+        }
+
+        return provider;
+      },
       child: Consumer<AdminAuthProvider>(
         builder: (_, auth, __) {
-          // Show splash while checking stored token
+          // 🔥 DEBUG STATE
+          print("👀 Auth State → loading: ${auth.isLoading}, auth: ${auth.isAuthenticated}");
+
           if (auth.isLoading) {
             return const MaterialApp(
               debugShowCheckedModeBanner: false,
@@ -54,7 +82,9 @@ class AdminApp extends StatelessWidget {
             title: 'VahanTag Admin',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFF6B00)),
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFFFF6B00),
+              ),
               useMaterial3: true,
               scaffoldBackgroundColor: const Color(0xFF0F172A),
             ),

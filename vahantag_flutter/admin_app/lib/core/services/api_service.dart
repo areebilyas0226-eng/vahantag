@@ -7,41 +7,45 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  Dio? _dio;
+  late Dio _dio;
 
-  Dio get dio {
-    if (_dio == null) {
-      throw Exception("ApiService not initialized. Call init() first.");
-    }
-    return _dio!;
-  }
+  Dio get dio => _dio;
 
   void init() {
-    _dio = Dio(BaseOptions(
-      baseUrl: AppConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-      validateStatus: (status) => status != null && status < 500,
-      headers: {'Content-Type': 'application/json'},
-    ));
+    _dio = Dio(
+      BaseOptions(
+        // 🔥 FORCE correct URL (avoid hidden bug)
+        baseUrl: AppConstants.baseUrl, 
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+        sendTimeout: const Duration(seconds: 20),
 
-    _dio!.interceptors.add(
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+
+        validateStatus: (status) {
+          return status != null && status < 500;
+        },
+      ),
+    );
+
+    _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await StorageService.getToken();
 
           print("\n======== API REQUEST ========");
-          print("URL: ${options.method} ${options.uri}");
+          print("${options.method} ${options.uri}");
           print("DATA: ${options.data}");
 
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
-            print("TOKEN: ✔️ attached");
+            print("TOKEN: ✔️");
           } else {
-            print("TOKEN: ❌ missing");
+            print("TOKEN: ❌");
           }
-
-          print("=============================\n");
 
           handler.next(options);
         },
@@ -49,67 +53,39 @@ class ApiService {
         onResponse: (response, handler) {
           print("\n======== API RESPONSE ========");
           print("STATUS: ${response.statusCode}");
-          print("URL: ${response.requestOptions.uri}");
           print("DATA: ${response.data}");
-          print("==============================\n");
-
           handler.next(response);
         },
 
         onError: (error, handler) {
-          final message = _extractErrorMessage(error);
-
           print("\n======== API ERROR ========");
-          print("STATUS: ${error.response?.statusCode}");
-          print("URL: ${error.requestOptions.uri}");
-          print("MESSAGE: $message");
+          print("TYPE: ${error.type}");
+          print("MESSAGE: ${error.message}");
           print("DATA: ${error.response?.data}");
-          print("===========================\n");
 
-          handler.next(
-            DioException(
-              requestOptions: error.requestOptions,
-              response: error.response,
-              error: message,
-              type: error.type,
-            ),
-          );
+          handler.next(error);
         },
       ),
     );
   }
 
-  // ================= ERROR HANDLING =================
-  String _extractErrorMessage(DioException error) {
-    final data = error.response?.data;
-
-    if (data is Map) {
-      return data['message'] ??
-          data['error'] ??
-          "Something went wrong";
-    }
-
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-        return "Connection timeout";
-      case DioExceptionType.connectionError:
-        return "Server unreachable";
-      case DioExceptionType.receiveTimeout:
-        return "Server slow response";
-      default:
-        return "Something went wrong";
-    }
+  // ================= AUTH =================
+  Future<Response> sendOTP(String phone) async {
+    return await dio.post(
+      '/auth/admin/send-otp',
+      data: {'phone': phone},
+    );
   }
 
-  // ================= AUTH =================
-  Future<Response> sendOTP(String phone) =>
-      dio.post('/auth/admin/send-otp', data: {'phone': phone});
-
-  Future<Response> verifyOTP(String phone, String otp) =>
-      dio.post('/auth/admin/verify-otp', data: {
+  Future<Response> verifyOTP(String phone, String otp) async {
+    return await dio.post(
+      '/auth/admin/verify-otp',
+      data: {
         'phone': phone,
         'otp': otp,
-      });
+      },
+    );
+  }
 
   // ================= DASHBOARD =================
   Future<Response> getDashboard() => dio.get('/admin/dashboard');
@@ -132,7 +108,6 @@ class ApiService {
       dio.get('/admin/tags',
           queryParameters: status.isNotEmpty ? {'status': status} : {});
 
-  // 🔥 FINAL FIXED VERSION
   Future<List<String>> generateTags(int count) async {
     final response = await dio.post(
       '/admin/tags/generate',
@@ -149,22 +124,17 @@ class ApiService {
       throw Exception(data['message'] ?? "Tag generation failed");
     }
 
-    final codes = data['codes'];
-
-    if (codes == null || codes is! List) {
-      throw Exception("Invalid codes format");
-    }
-
-    return List<String>.from(codes);
+    return List<String>.from(data['codes']);
   }
 
   Future<Response> assignTags(
-      String agentId, List<String> codes, int price) =>
-      dio.post('/admin/tags/assign-agent', data: {
-        'agent_id': agentId,
-        'tag_codes': codes,
-        'wholesale_price_paisa': price,
-      });
+      String agentId, List<String> codes, int price) {
+    return dio.post('/admin/tags/assign-agent', data: {
+      'agent_id': agentId,
+      'tag_codes': codes,
+      'wholesale_price_paisa': price,
+    });
+  }
 
   // ================= CATEGORIES =================
   Future<Response> getCategories() => dio.get('/admin/categories');
